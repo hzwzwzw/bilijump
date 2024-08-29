@@ -2,7 +2,20 @@ var skiptimer = null;
 var modelout = "";
 var divinfo = null;
 bvid = "";
-function run() {
+
+const getkey = async () => {
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get('llmkey', function (result) {
+            if (result.llmkey && result.llmkey.length > 0) {
+                resolve(result.llmkey);
+            } else {
+                reject("API key not found");
+            }
+        });
+    });
+};
+
+async function run() {
     // get url
     var url = window.location.href;
     // get bvid from url
@@ -82,7 +95,7 @@ function run() {
     // send subtitle to bigmodel
     var request = new XMLHttpRequest();
     var url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-    var apiKey = '17a4242bf1f7ea93a7dca2b57876aa0c.GRTHAxlK9Oc6IX07';
+    var apiKey = await getkey();
     var requestBody = {
         "model": "glm-4-flash",
         "messages": [
@@ -164,11 +177,11 @@ function setTimer() {
     if (skiptimer != null) {
         clearInterval(skiptimer);
     }
-    wtimer = setInterval(function () {
+    wtimer = setInterval(async function () {
         time = document.getElementsByClassName("bpx-player-video-wrap")[0].children[0].currentTime;
         if (time == undefined || time > 0) {
             clearInterval(wtimer);
-            result = run();
+            result = await run();
             // add a div to show result
             divinfo = document.createElement("div");
             divinfo.className = "bilijump_info";
