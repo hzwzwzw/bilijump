@@ -9,9 +9,10 @@
     <div style="width: 720px;">
         <h1>Thank you for choosing BiliJump!</h1>
         <p>BiliJump 是一个简单的 Bilibili 平台视频内口播广告智能跳过插件</p>
-        <p>要使用 BiliJump，你需要先配置有关大模型的 API key。</p>
-        <p>目前，插件只支持 bigmodel.cn 的 GLM 模型。</p>
-        <input id="codeTextArea" type="password" style="width: 100%;">
+        <p>你可以直接使用 BiliJump 提供的后端服务，所用的模型是 GLM。你也可以在下方手动填入 API key、地址和模型名，一旦三个输入框均非空，则将使用你的自定义配置。</p>
+        <input id="codeTextArea" type="password" style="width: 100%;" placeholder="API Key">
+        <input id="urlTextArea" type="text" style="width: 100%;" placeholder="网址" value="https://open.bigmodel.cn/api/paas/v4/chat/completions">
+        <input id="modelTextArea" type="text" style="width: 100%;" placeholder="模型名" value="glm-4-flash">
         <button id="saveButton">Save</button>
         <!-- <button id="defaultButton">Default</button> -->
     </div>

@@ -1,10 +1,10 @@
 {
     "manifest_version": 3,
     "name": "BiliJump",
-    "version": "1.0",
+    "version": "1.1",
     "description": "A plugin automatically skip ads in the video of Bilibili, with llm's analysis.",
     "permissions": ["activeTab", "storage", "scripting"],
-    "host_permissions": ["*://*.bigmodel.cn/*"],
+    "host_permissions": ["*://*.bigmodel.cn/*", "*://*.tencentscf.com/*"],
     "content_scripts": [
         {
         "matches": ["*://*.bilibili.com/*"],

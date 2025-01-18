@@ -9,11 +9,102 @@ const getkey = async () => {
             if (result.llmkey && result.llmkey.length > 0) {
                 resolve(result.llmkey);
             } else {
-                reject("API key not found");
+                resolve("");
             }
         });
     });
 };
+
+const geturl = async () => {
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get('llmurl', function (result) {
+            if (result.llmurl && result.llmurl.length > 0) {
+                resolve(result.llmurl);
+            } else {
+                resolve("");
+            }
+        });
+    });
+}
+
+const getmodel = async () => {
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get('llmmodel', function (result) {
+            if (result.llmmodel && result.llmmodel.length > 0) {
+                resolve(result.llmmodel);
+            } else {
+                resolve("");
+            }
+        });
+    });
+}
+
+const getModelOut = async (subtitle_str) => {
+    
+    // send subtitle to bigmodel
+    var request = new XMLHttpRequest();
+    var apiKey = await getkey();
+    var apiUrl = await geturl();
+    var model = await getmodel();
+    if (apiKey === "" || apiUrl === "" || model === "") {
+        // default api key and url and model
+        // different from normal request to a llm service
+        // POST: http://jump.kirotta.top/api/v1/bilijump
+        // argument: data
+
+        console.log("默认的api key和url和model");
+        const data = new URLSearchParams();
+        data.append('data', subtitle_str);
+        request.open('POST', "https://1301820339-1l4dickj03.ap-guangzhou.tencentscf.com/api/v1/bilijump", false);
+        request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        request.onreadystatechange = function () {
+            if (request.readyState === 4 && request.status === 200) {
+                var response = JSON.parse(request.responseText);
+                modelout = response.response;
+            }
+        };
+        request.send(data);
+
+    } else {
+        console.log("自定义的api key和url和model");
+        var requestBody = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    // system prompt
+                    "content": "\
+你是一位Youtube视频标注员。你将得到一篇带有时间轴的视频文案，而你的任务是找到其中的`广告部分`，并指出其`开始时间`和`结束时间`。\n\
+广告文案具有以下特征：\n\
+1. 与视频文案的其他内容关联性不强或比较牵强\n\
+2. 会提及一个与视频文案主体无关的赞助商品牌或产品\n\
+3. 通常以一段衔接过渡语开始，并以一段鼓动消费语结束\n\
+如果发现了广告部分，请输出：\n\
+广告品牌（产品）：xxx \n\
+开始时间：xxx \n\
+结束时间：xxx”\n\n\
+你只需要寻找一段广告。\n\
+请注意，你所得到的文案也可能不包含广告，此时请输出：“没有广告”"
+                },
+                {
+                    "role": "user",
+                    "content": subtitle_str
+                }
+            ]
+        };
+        request.open('POST', apiUrl, false);
+        request.setRequestHeader('Authorization', 'Bearer ' + apiKey);
+        request.setRequestHeader('Content-Type', 'application/json');
+        request.onreadystatechange = function () {
+            if (request.readyState === 4 && request.status === 200) {
+                var response = JSON.parse(request.responseText);
+                modelout = response.choices[0].message.content;
+            }
+        };
+        request.send(JSON.stringify(requestBody));
+    }
+    return modelout;
+}
 
 async function run() {
     // get url
@@ -50,9 +141,11 @@ async function run() {
     xhr.onreadystatechange = function () {
         if (xhr.readyState == 4 && xhr.status == 200) {
             var res = JSON.parse(xhr.responseText);
+            console.log(res);
             subtitle_url = res.data.subtitle.subtitles[0].subtitle_url;
         }
     }
+    xhr.setRequestHeader('Accept', 'application/json, text/plain, */*');
     xhr.send();
     console.log(subtitle_url);
     if (subtitle_url === "") {
@@ -92,45 +185,13 @@ async function run() {
     });
     console.log(subtitle_str);
 
-    // send subtitle to bigmodel
-    var request = new XMLHttpRequest();
-    var url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-    var apiKey = await getkey();
-    var requestBody = {
-        "model": "glm-4-flash",
-        "messages": [
-            {
-                "role": "system",
-                // system prompt
-                "content": "\
-你是一位Youtube视频标注员。你将得到一篇带有时间轴的视频文案，而你的任务是找到其中的`广告部分`，并指出其`开始时间`和`结束时间`。\n\
-广告文案具有以下特征：\n\
-1. 与视频文案的其他内容关联性不强或比较牵强\n\
-2. 会提及一个与视频文案主体无关的赞助商品牌或产品\n\
-3. 通常以一段衔接过渡语开始，并以一段鼓动消费语结束\n\
-如果发现了广告部分，请输出：\n\
-广告品牌（产品）：xxx \n\
-开始时间：xxx \n\
-结束时间：xxx”\n\n\
-你只需要寻找一段广告。\n\
-请注意，你所得到的文案也可能不包含广告，此时请输出：“没有广告”"
-            },
-            {
-                "role": "user",
-                "content": subtitle_str
-            }
-        ]
-    };
-    request.open('POST', url, false);
-    request.setRequestHeader('Authorization', 'Bearer ' + apiKey);
-    request.setRequestHeader('Content-Type', 'application/json');
-    request.onreadystatechange = function() {
-        if (request.readyState === 4 && request.status === 200) {
-            var response = JSON.parse(request.responseText);
-            modelout = response.choices[0].message.content;
-        }
-    };
-    request.send(JSON.stringify(requestBody));
+    modelout = await getModelOut(subtitle_str);
+
+    if (modelout == "" || modelout == null || modelout == undefined) { 
+        console.log("modelout is empty");
+        return -1;
+    }
+    
 
     if (modelout.indexOf("没有广告") !== -1) {
         console.log("没有广告");
@@ -161,7 +222,7 @@ async function run() {
             clearInterval(skiptimer);
             video.currentTime = time2;
             video.play()
-            divinfo.innerHTML = "已跳过广告";
+            divinfo.innerHTML = "BiliJump | 已跳过广告";
         }
     }, 1000);
     return 1;
@@ -187,8 +248,9 @@ function setTimer() {
             divinfo.className = "bilijump_info";
             if (result == -1) {
                 divinfo.style = "color: red; font-size: 10px;";
-                divinfo.innerHTML = "无法获取视频信息或字幕";
+                divinfo.innerHTML = "Bilijump | 无法获取视频信息或字幕";
                 var button = document.createElement("button");
+                button.style = "margin-left: 10px;";
                 button.innerHTML = "重试";
                 button.onclick = function() {
                     setTimer();
@@ -196,8 +258,9 @@ function setTimer() {
                 divinfo.appendChild(button);
             }else if (result == 0) {
                 divinfo.style = "color: gray; font-size: 10px;";
-                divinfo.innerHTML = "没有识别到广告";
+                divinfo.innerHTML = "BiliJump | 没有识别到广告";
                 var button = document.createElement("button");
+                button.style = "margin-left: 10px;";
                 button.innerHTML = "重试";
                 button.onclick = function() {
                     setTimer();
@@ -210,17 +273,33 @@ function setTimer() {
                 time1sec = parseInt(time1 % 60);
                 time2min = parseInt(time2 / 60);
                 time2sec = parseInt(time2 % 60);
-                divinfo.innerHTML = "广告品牌（产品）：" + modelout[0].split("：")[1] + " 开始时间：" + time1min + ":" + time1sec + " 结束时间：" + time2min + ":" + time2sec;
+                divinfo.innerHTML = "BiliJump | 广告品牌（产品）：" + modelout[0].split("：")[1] + " 开始时间：" + time1min + ":" + time1sec + " 结束时间：" + time2min + ":" + time2sec;
                 var button = document.createElement("button");
+                button.style = "margin-left: 10px;";
                 button.innerHTML = "取消";
                 button.onclick = function() {
                     clearInterval(skiptimer);
-                    divinfo.innerHTML = "取消跳过广告";
+                    divinfo.innerHTML = "BiliJump | 取消跳过广告";
                 }
                 divinfo.appendChild(button);
             }
-            document.getElementsByClassName("video-desc-container")[0].appendChild(divinfo);
-            document.getElementsByClassName("video-desc-container")[0].style = "visibility: visible;";
+            // 添加一个隐藏按钮
+            var hidebutton = document.createElement("button");
+            hidebutton.style = "margin-left: 10px;";
+            hidebutton.innerHTML = "隐藏";
+            hidebutton.onclick = function() {
+                divinfo.style.display = "none";
+            }
+            divinfo.appendChild(hidebutton);
+            // divinfo 悬浮在右下角
+            divinfo.style.position = "fixed";
+            divinfo.style.bottom = "10px";
+            divinfo.style.right = "10px";
+            divinfo.style.padding = "10px";
+            divinfo.style.border = "1px solid #000";
+            divinfo.style.backgroundColor = "#fff";
+            // 插入在html中
+            document.body.appendChild(divinfo);
         }
     }, 1000);
 }
@@ -234,4 +313,9 @@ if (document.readyState !== 'loading') {
 // url change
 window.addEventListener('popstate', setTimer);
 window.addEventListener('hashchange', setTimer);
-document.getElementById("reco_list").addEventListener("click", setTimer);
+
+recolist = document.getElementById("reco_list");
+if(recolist != null){
+    recolist.addEventListener('DOMNodeInserted', setTimer);
+    recolist.addEventListener("click", setTimer);
+}
